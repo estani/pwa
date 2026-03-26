@@ -1,0 +1,17 @@
+{
+  "name": "Soundboard",
+  "short_name": "Soundboard",
+  "description": "RPG & game music player with fade controls",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0e0e0f",
+  "theme_color": "#0e0e0f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230e0e0f'/><text x='96' y='130' font-size='100' text-anchor='middle'>🎵</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
