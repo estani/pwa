@@ -4,7 +4,8 @@
 
 const DB_NAME = 'soundboard_db';
 const STORE_NAME = 'file_handles';
-const LIBRARY_KEY = 'sb_library_v2'; // Increased version for multiple tags
+const BLOB_STORE = 'file_blobs';
+const LIBRARY_KEY = 'sb_library_v2';
 
 export const FACTORY_GENRES = ['Western', 'Sci-fi', 'Fantasy', 'Horror', 'Nature', 'Urban', 'Historical', 'Other'];
 export const FACTORY_MOODS = ['Tense', 'Epic', 'Light', 'Joyful', 'Dark', 'Mysterious', 'Peaceful', 'Action'];
@@ -15,25 +16,27 @@ export const Store = {
 
     async init() {
         this.library = JSON.parse(localStorage.getItem(LIBRARY_KEY) || '[]');
-        // Clean up old session-based fileMap if any (handled per session)
-        await this.refreshFileHandles();
+        await this.refreshFileDiscovery();
     },
 
     save() {
         localStorage.setItem(LIBRARY_KEY, JSON.stringify(this.library));
     },
 
-    async addTrack(track, file, handle = null) {
+    async addTrack(track, file, handle = null, storeBlob = false) {
         // Fallback for non-secure contexts where crypto.randomUUID is unavailable
         track.id = (typeof crypto.randomUUID === 'function')
             ? crypto.randomUUID()
             : Date.now().toString(36) + Math.random().toString(36).substr(2);
 
+        track.fileName = file.name; // Keep original filename
         this.library.push(track);
         this.save();
 
         if (handle) {
             await this.saveFileHandle(track.id, handle);
+        } else if (storeBlob) {
+            await this.saveFileBlob(track.id, file);
         }
 
         this.fileMap.set(track.id, file);
@@ -53,11 +56,20 @@ export const Store = {
         this.save();
         this.fileMap.delete(id);
         this.deleteFileHandle(id);
+        this.deleteFileBlob(id);
     },
 
-    async relinkFile(id, file, handle = null) {
+    async relinkFile(id, file, handle = null, storeBlob = false) {
+        const track = this.library.find(t => t.id === id);
+        if (track) {
+            track.fileName = file.name;
+            this.save();
+        }
+
         if (handle) {
             await this.saveFileHandle(id, handle);
+        } else if (storeBlob) {
+            await this.saveFileBlob(id, file);
         }
         this.fileMap.set(id, file);
     },
@@ -96,23 +108,65 @@ export const Store = {
         });
     },
 
-    async refreshFileHandles() {
+    async refreshFileDiscovery() {
         const db = await this.openDB();
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
 
+        // Check handles
+        const txH = db.transaction(STORE_NAME, 'readonly');
+        const storeH = txH.objectStore(STORE_NAME);
+        const keysH = await new Promise(r => {
+            const req = storeH.getAllKeys();
+            req.onsuccess = () => r(req.result || []);
+            req.onerror = () => r([]);
+        });
+
+        // Check blobs
+        const txB = db.transaction(BLOB_STORE, 'readonly');
+        const storeB = txB.objectStore(BLOB_STORE);
+        const keysB = await new Promise(r => {
+            const req = storeB.getAllKeys();
+            req.onsuccess = () => r(req.result || []);
+            req.onerror = () => r([]);
+        });
+
+        for (const id of keysB) {
+            if (!this.fileMap.has(id)) this.fileMap.set(id, { type: 'blob' });
+        }
+        for (const id of keysH) {
+            if (!this.fileMap.has(id)) this.fileMap.set(id, { type: 'handle' });
+        }
+    },
+
+    async saveFileBlob(id, blob) {
+        const db = await this.openDB();
+        const tx = db.transaction(BLOB_STORE, 'readwrite');
+        const store = tx.objectStore(BLOB_STORE);
         return new Promise((resolve) => {
-            const request = store.getAllKeys();
-            request.onsuccess = () => {
-                const keys = request.result || [];
-                for (const id of keys) {
-                    if (!this.fileMap.has(id)) {
-                        this.fileMap.set(id, null);
-                    }
-                }
-                resolve();
-            };
-            request.onerror = () => resolve(); // Fail silently
+            const request = store.put(blob, id);
+            request.onsuccess = () => resolve();
+            request.onerror = () => resolve();
+        });
+    },
+
+    async getFileBlob(id) {
+        const db = await this.openDB();
+        const tx = db.transaction(BLOB_STORE, 'readonly');
+        const store = tx.objectStore(BLOB_STORE);
+        return new Promise((resolve) => {
+            const request = store.get(id);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => resolve(null);
+        });
+    },
+
+    async deleteFileBlob(id) {
+        const db = await this.openDB();
+        const tx = db.transaction(BLOB_STORE, 'readwrite');
+        const store = tx.objectStore(BLOB_STORE);
+        return new Promise((resolve) => {
+            const request = store.delete(id);
+            request.onsuccess = () => resolve();
+            request.onerror = () => resolve();
         });
     },
 
@@ -153,9 +207,11 @@ export const Store = {
 
     openDB() {
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open(DB_NAME, 1);
+            const request = indexedDB.open(DB_NAME, 2);
             request.onupgradeneeded = () => {
-                request.result.createObjectStore(STORE_NAME);
+                const db = request.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+                if (!db.objectStoreNames.contains(BLOB_STORE)) db.createObjectStore(BLOB_STORE);
             };
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);

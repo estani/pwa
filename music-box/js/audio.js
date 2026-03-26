@@ -13,8 +13,8 @@ export const AudioEngine = {
     currentTrackId: null,
     pendingTrackId: null,
     loopEnabled: false,
-    fadeOutSecs: 0,
-    fadeInSecs: 0,
+    fadeOutSecs: 5,
+    fadeInSecs: 5,
     masterVolume: 0.8,
     progressTimer: null,
     onProgress: null, // callback for UI progress updates
@@ -90,23 +90,20 @@ export const AudioEngine = {
         }
     },
 
-    async stop(fadeSecs = 0) {
-        if (!this.currentSource) return;
+    async stop(secs = 0.5) {
+        if (!this.currentSource) return Promise.resolve(); // Changed `this.source` to `this.currentSource`
 
-        if (fadeSecs > 0) {
-            this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
-            this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + fadeSecs);
+        const gain = this.gainNode.gain;
+        gain.setValueAtTime(gain.value, this.context.currentTime);
+        gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + secs);
 
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    this._immediateStop();
-                    this.gainNode.gain.setValueAtTime(this.masterVolume, this.context.currentTime);
-                    resolve();
-                }, fadeSecs * 1000);
-            });
-        } else {
-            this._immediateStop();
-        }
+        return new Promise(resolve => {
+            setTimeout(() => {
+                this._immediateStop();
+                if (this.onEnded) this.onEnded();
+                resolve();
+            }, secs * 1000);
+        });
     },
 
     _immediateStop() {
@@ -118,12 +115,12 @@ export const AudioEngine = {
         clearInterval(this.progressTimer);
     },
 
-    togglePlay() {
+    async togglePlay() {
         if (this.currentTrackId === null) return;
         this.init();
         if (this.isPlaying) {
             this.pausedAt = this.context.currentTime - this.startedAt;
-            this._immediateStop();
+            await this.stop(this.fadeOutSecs);
         } else {
             this.playBuffer(this.pausedAt);
         }
