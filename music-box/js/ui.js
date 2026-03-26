@@ -115,14 +115,24 @@ export const UI = {
             const isActive = t.id === AudioEngine.currentTrackId;
             const isPlaying = isActive && AudioEngine.isPlaying;
 
+            // Status indication
+            let status = '';
+            if (Store.fileMap.get(t.id)) {
+                status = '<span style="color:var(--success)">●</span>'; // Loaded
+            } else if (Store.fileMap.has(t.id)) {
+                status = '<span style="color:var(--accent); font-size:10px">🔒</span>'; // Locked
+            } else {
+                status = '<span style="color:var(--danger); font-size:10px">⚠️</span>'; // Missing
+            }
+
             const icon = this.ICONS[t.genres?.[0]] || '♪';
             const tags = [...(t.genres || []), ...(t.moods || [])].map(tag => `<span class="track-tag">${tag}</span>`).join('');
 
             return `
-        <div class="track-item ${isActive ? 'active' : ''}" onclick="window.UI.selectTrack('${t.id}')">
+        <div class="track-item ${isActive ? 'active' : ''}" onclick="window.UI.selectTrack('${t.id}')" title="${Store.fileMap.get(t.id) ? 'Ready' : 'Click to authorize or re-add'}">
           <div class="track-icon">${icon}</div>
           <div class="track-info">
-            <div class="track-name">${t.name}</div>
+            <div class="track-name">${t.name} ${status}</div>
             <div class="track-tags">${tags}</div>
           </div>
           ${isPlaying ? `
@@ -130,7 +140,9 @@ export const UI = {
               <span></span><span></span><span></span>
             </div>
           ` : ''}
-          <button class="btn btn-icon" onclick="event.stopPropagation(); window.UI.deleteTrack('${t.id}')">✕</button>
+          <div style="display:flex;">
+            <button class="btn btn-icon" style="opacity: 0.4" onclick="event.stopPropagation(); window.UI.deleteTrack('${t.id}')">✕</button>
+          </div>
         </div>
       `;
         }).join('');
@@ -145,24 +157,41 @@ export const UI = {
 
         // Try to get file
         let file = Store.fileMap.get(id);
+
         if (!file) {
-            // Try from IndexedDB handle
+            // Check for handle in DB
             const result = await Store.getFileFromHandle(id);
+
             if (result && !result.needsPermission) {
                 file = result;
+                Store.fileMap.set(id, file); // Update session map
+                this.renderTracks();
             } else if (result && result.needsPermission) {
-                this.showToast('Please re-authorize access to this folder.');
-                // In a real app we'd trigger a permission request here
-                return;
+                // Request authorization
+                if (confirm(`Authorize access to restore "${Store.library.find(t => t.id === id).name}"?`)) {
+                    const handle = result.handle;
+                    if (await handle.requestPermission({ mode: 'read' }) === 'granted') {
+                        file = await handle.getFile();
+                        Store.fileMap.set(id, file);
+                        this.renderTracks();
+                    } else {
+                        return;
+                    }
+                } else {
+                    return;
+                }
             } else {
-                this.showToast('File not found this session. Please re-add.');
-                return;
+                // No file and no handle -> Relink prompt
+                if (confirm(`Soundtrack file is missing from this session. Re-link it now?`)) {
+                    await this.relinkTrack(id);
+                    return; // relinkTrack will re-call render
+                } else {
+                    return;
+                }
             }
         }
 
         if (AudioEngine.isPlaying) {
-            // Show switch modal or just fade?
-            // Let's implement quick fade 1s by default for smoothness
             await AudioEngine.stop(1);
         }
 
@@ -170,6 +199,31 @@ export const UI = {
         this.updateNowPlaying();
         this.updatePlayButton();
         this.renderTracks();
+    },
+
+    async relinkTrack(id) {
+        this.relinkingId = id;
+        const track = Store.library.find(t => t.id === id);
+        const isSecure = window.isSecureContext && typeof window.showOpenFilePicker === 'function';
+
+        this.showToast(`Relinking: ${track.name}`);
+
+        if (isSecure) {
+            const file = await this.selectWithDirectAccess();
+            if (file) {
+                await Store.relinkFile(id, file, this.pendingHandle);
+                this.renderAll();
+            }
+        } else {
+            const picker = document.createElement('input');
+            picker.type = 'file'; picker.accept = 'audio/*';
+            picker.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file) { await Store.relinkFile(id, file, null); this.renderAll(); }
+            };
+            picker.click();
+        }
+        this.relinkingId = null;
     },
 
     setFadeOut(btn, secs) {
@@ -299,13 +353,17 @@ export const UI = {
             this.pendingHandle = handle;
             this.pendingFile = await handle.getFile();
 
-            document.getElementById('file-label').textContent = this.pendingFile.name;
+            const fileLabel = document.getElementById('file-label');
+            if (fileLabel) fileLabel.textContent = this.pendingFile.name;
+
             const nameInput = document.getElementById('track-name-input');
-            if (!nameInput.value) nameInput.value = this.pendingFile.name.split('.')[0];
+            if (nameInput && !nameInput.value) nameInput.value = this.pendingFile.name.split('.')[0];
 
             this.showToast('Direct Access Enabled ✔');
+            return this.pendingFile;
         } catch (e) {
             console.log('User cancelled or not supported', e);
+            return null;
         }
     },
 
@@ -313,7 +371,7 @@ export const UI = {
         const fileInput = document.getElementById('file-input');
         const nameInput = document.getElementById('track-name-input');
 
-        let file = this.pendingFile || fileInput.files[0];
+        let file = this.pendingFile || (fileInput ? fileInput.files[0] : null);
         let handle = this.pendingHandle;
 
         if (!file) {
@@ -321,14 +379,20 @@ export const UI = {
             return;
         }
 
-        const track = {
-            name: nameInput.value || file.name,
-            genres: this.selectedGenres,
-            moods: this.selectedMoods,
-            addedAt: Date.now()
-        };
+        if (this.relinkingId) {
+            // Update existing track instead of adding
+            await Store.relinkFile(this.relinkingId, file, handle);
+            this.relinkingId = null;
+        } else {
+            const track = {
+                name: nameInput ? (nameInput.value || file.name) : file.name,
+                genres: this.selectedGenres,
+                moods: this.selectedMoods,
+                addedAt: Date.now()
+            };
+            await Store.addTrack(track, file, handle);
+        }
 
-        const idx = await Store.addTrack(track, file, handle);
         this.pendingFile = null;
         this.pendingHandle = null;
         this.closeModal();

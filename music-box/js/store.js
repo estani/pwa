@@ -55,6 +55,13 @@ export const Store = {
         this.deleteFileHandle(id);
     },
 
+    async relinkFile(id, file, handle = null) {
+        if (handle) {
+            await this.saveFileHandle(id, handle);
+        }
+        this.fileMap.set(id, file);
+    },
+
     // ── Dynamic Metadata Registry ──
     getAvailableGenres() {
         const custom = this.library.flatMap(t => t.genres || []);
