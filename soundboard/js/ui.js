@@ -16,6 +16,7 @@ export const UI = {
         Western: '🤠', 'Sci-fi': '🚀', Fantasy: '⚔️', Horror: '😱',
         Nature: '🌿', Urban: '🏙️', Historical: '🏛️', Other: '♪'
     },
+    VERSION: '1.0',
 
     async init() {
         this.bindEvents();
@@ -63,6 +64,7 @@ export const UI = {
             n.classList.toggle('active', n.getAttribute('data-section') === section);
         });
 
+        if (section === 'status') this.renderStatus();
         this.renderAll();
     },
 
@@ -135,13 +137,15 @@ export const UI = {
             const isActive = t.id === AudioEngine.currentTrackId;
             const isPlaying = isActive && AudioEngine.isPlaying;
 
-            let status = '';
             const f = Store.fileMap.get(t.id);
             const isLoadedOrBlob = f && (f instanceof File || f instanceof Blob || f.type === 'blob');
             const isHandle = f && f.type === 'handle';
 
+            let sizeStr = '';
+            if (isLoadedOrBlob && t.size) sizeStr = ` <small style="opacity:0.5">(${this.fmtSize(t.size)})</small>`;
+
             if (isLoadedOrBlob) {
-                status = '<span style="color:var(--success)" title="Ready">●</span>';
+                status = `<span style="color:var(--success)" title="Ready">●${sizeStr}</span>`;
             } else if (isHandle) {
                 status = '<span style="color:var(--accent); font-size:10px" title="Needs Authorization">🔒</span>';
             } else {
@@ -302,6 +306,68 @@ export const UI = {
         document.getElementById('progress-fill').style.width = `${Math.min(pct, 100)}%`;
         document.getElementById('time-current').textContent = this.fmtTime(elapsed);
         document.getElementById('time-total').textContent = this.fmtTime(duration);
+    },
+
+    async renderStatus() {
+        const totalTracks = Store.library.length;
+        const totalStoredSize = await Store.getTotalBlobSize();
+
+        const content = document.getElementById('status-content');
+        if (!content) return;
+
+        content.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:flex-start">
+              <h3>📊 System Status</h3>
+              <span style="font-size:10px; color:var(--text-dim); background:var(--surface-active); padding:2px 8px; border-radius:4px">v${this.VERSION}</span>
+            </div>
+            <div style="margin-top:20px; display:grid; gap:16px">
+                <div class="status-stat" style="background:var(--surface-active); padding:16px; border-radius:12px">
+                    <div style="font-size:12px; color:var(--text-dim); margin-bottom:4px">TOTAL TRACKS</div>
+                    <div style="font-size:24px; font-weight:600; color:var(--accent)">${totalTracks}</div>
+                </div>
+                <div class="status-stat" style="background:var(--surface-active); padding:16px; border-radius:12px">
+                    <div style="font-size:12px; color:var(--text-dim); margin-bottom:4px">OFFLINE STORAGE</div>
+                    <div style="font-size:24px; font-weight:600; color:var(--success)">${this.fmtSize(totalStoredSize)}</div>
+                    <div style="font-size:10px; color:var(--text-dim); margin-top:8px">Stored objects in IndexedDB. Use "Store in browser" to enable.</div>
+                </div>
+            </div>
+            <div style="margin-top:20px; display:flex; gap:12px">
+                <button class="btn btn-ghost" style="flex:1" onclick="location.reload()">Refresh App</button>
+                <button class="btn btn-danger" style="flex:1" onclick="window.UI.nukeEverything()">Nuke Everything</button>
+            </div>
+        `;
+    },
+
+    async nukeEverything() {
+        if (!confirm('This will DELETE all tracks, metadata and stored files from this browser. Continue?')) return;
+        if (!confirm('Are you ABSOLUTELY sure? This cannot be undone.')) return;
+
+        this.showToast('Nuking data...');
+
+        await Store.clearAllData();
+
+        // Clear caches
+        if ('caches' in window) {
+            const names = await caches.keys();
+            await Promise.all(names.map(n => caches.delete(n)));
+        }
+
+        // Unregister SW
+        if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+        }
+
+        this.showToast('Reset complete. Reloading.');
+        setTimeout(() => location.reload(), 1000);
+    },
+
+    fmtSize(bytes) {
+        if (!bytes) return '0KB';
+        const k = 1024;
+        const m = k * k;
+        if (bytes >= m) return Math.round(bytes / m) + 'MB';
+        return Math.round(bytes / k) + 'KB';
     },
 
     fmtTime(s) {

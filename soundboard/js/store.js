@@ -30,6 +30,7 @@ export const Store = {
             : Date.now().toString(36) + Math.random().toString(36).substr(2);
 
         track.fileName = file.name; // Keep original filename
+        track.size = file.size; // Store original size
         this.library.push(track);
         this.save();
 
@@ -63,6 +64,7 @@ export const Store = {
         const track = this.library.find(t => t.id === id);
         if (track) {
             track.fileName = file.name;
+            track.size = file.size;
             this.save();
         }
 
@@ -170,6 +172,26 @@ export const Store = {
         });
     },
 
+    async getTotalBlobSize() {
+        const db = await this.openDB();
+        const tx = db.transaction(BLOB_STORE, 'readonly');
+        const store = tx.objectStore(BLOB_STORE);
+        return new Promise(resolve => {
+            let total = 0;
+            const req = store.openCursor();
+            req.onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    total += cursor.value.size;
+                    cursor.continue();
+                } else {
+                    resolve(total);
+                }
+            };
+            req.onerror = () => resolve(0);
+        });
+    },
+
     async getFileFromHandle(id) {
         const db = await this.openDB();
         const tx = db.transaction(STORE_NAME, 'readonly');
@@ -203,6 +225,19 @@ export const Store = {
         const store = tx.objectStore(STORE_NAME);
         await store.clear();
         // This is simple but risky. In a production app use UUIDs.
+    },
+
+    async clearAllData() {
+        const db = await this.openDB();
+        const txB = db.transaction(BLOB_STORE, 'readwrite');
+        await txB.objectStore(BLOB_STORE).clear();
+
+        const txH = db.transaction(STORE_NAME, 'readwrite');
+        await txH.objectStore(STORE_NAME).clear();
+
+        localStorage.removeItem(LIBRARY_KEY);
+        this.library = [];
+        this.fileMap.clear();
     },
 
     openDB() {
