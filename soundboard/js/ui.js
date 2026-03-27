@@ -553,6 +553,13 @@ export const UI = {
             </div>
             <div style="margin-top:20px; display:grid; gap:16px">
                 <div class="status-stat" style="background:var(--surface-active); padding:16px; border-radius:12px">
+                    <div style="font-size:12px; color:var(--text-dim); margin-bottom:8px">APP UPDATE</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center">
+                       <div style="font-size:14px; color:var(--text)">Current: v${this.VERSION}</div>
+                       <button class="btn btn-ghost" id="update-check-btn" onclick="window.UI.checkForUpdate()" style="padding: 6px 12px; font-size:12px;">Check for updates</button>
+                    </div>
+                </div>
+                <div class="status-stat" style="background:var(--surface-active); padding:16px; border-radius:12px">
                     <div style="font-size:12px; color:var(--text-dim); margin-bottom:4px">TOTAL TRACKS</div>
                     <div style="font-size:24px; font-weight:600; color:var(--accent)">${totalTracks}</div>
                 </div>
@@ -591,6 +598,71 @@ export const UI = {
 
         this.showToast('Reset complete. Reloading.');
         setTimeout(() => location.reload(), 1000);
+    },
+
+    async checkForUpdate() {
+        const btn = document.getElementById('update-check-btn');
+        if (!btn) return;
+
+        if (!('serviceWorker' in navigator)) {
+            btn.textContent = 'Not Supported';
+            return;
+        }
+
+        btn.textContent = 'Checking...';
+        btn.disabled = true;
+
+        try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg) {
+                let found = false;
+                
+                // If an update is already waiting or installing
+                if (reg.waiting || reg.installing) {
+                    found = true;
+                }
+
+                const onUpdateFound = () => {
+                    found = true;
+                    this.showUpdateReady(btn);
+                };
+
+                reg.addEventListener('updatefound', onUpdateFound, { once: true });
+
+                await reg.update();
+
+                // Small delay to allow updatefound to trigger if the network fetch found differences
+                setTimeout(() => {
+                    if (!found) {
+                        reg.removeEventListener('updatefound', onUpdateFound);
+                        btn.textContent = 'Up to date ✔';
+                        setTimeout(() => {
+                            btn.textContent = 'Check for updates';
+                            btn.disabled = false;
+                        }, 3000);
+                    } else {
+                        this.showUpdateReady(btn);
+                    }
+                }, 1500);
+            } else {
+                btn.textContent = 'No SW Found';
+            }
+        } catch (e) {
+            btn.textContent = 'Error';
+            console.error(e);
+        }
+    },
+
+    showUpdateReady(btn) {
+        btn.textContent = 'Update Ready! Restart';
+        btn.style.background = 'var(--accent)';
+        btn.style.color = '#000';
+        btn.style.borderColor = 'var(--accent)';
+        btn.disabled = false;
+        btn.onclick = () => {
+            // Force reload dropping caches usually not strictly needed if SW uses skipWaiting
+            window.location.reload(true);
+        };
     },
 
     fmtSize(bytes) {
