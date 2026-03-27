@@ -7,8 +7,8 @@ const STORE_NAME = 'file_handles';
 const BLOB_STORE = 'file_blobs';
 const LIBRARY_KEY = 'sb_library_v2';
 
-export const FACTORY_GENRES = ['Western', 'Sci-fi', 'Fantasy', 'Horror', 'Nature', 'Urban', 'Historical', 'Other'];
-export const FACTORY_MOODS = ['Tense', 'Epic', 'Light', 'Joyful', 'Dark', 'Mysterious', 'Peaceful', 'Action'];
+export const FACTORY_GENRES = ['Fantasy', 'Western', 'Sci-fi'];
+export const FACTORY_MOODS = ['Epic', 'Tense', 'Light'];
 
 export const Store = {
     library: [],
@@ -85,6 +85,11 @@ export const Store = {
     getAvailableMoods() {
         const custom = this.library.flatMap(t => t.moods || []);
         return [...new Set([...FACTORY_MOODS, ...custom])].sort();
+    },
+
+    getAvailableTags() {
+        const custom = this.library.flatMap(t => t.tags || []);
+        return [...new Set(custom)].sort();
     },
 
     // ── File System Access Persistence ──

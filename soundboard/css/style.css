@@ -256,8 +256,8 @@ body {
 
 .btn-play-large {
   width: 52px;
-  height: 52px;
-  border-radius: 50%;
+  height: 32px;
+  border-radius: 15px;
   background: var(--accent);
   color: #000;
   font-size: 20px;
@@ -290,6 +290,7 @@ body {
 input[type=range].vol-slider {
   flex: 1;
   -webkit-appearance: none;
+  appearance: none;
   height: 4px;
   background: var(--surface-hover);
   border-radius: 2px;
@@ -298,6 +299,7 @@ input[type=range].vol-slider {
 
 input[type=range].vol-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
+  appearance: none;
   width: 16px;
   height: 16px;
   background: var(--accent);
@@ -360,18 +362,63 @@ input[type=range].vol-slider::-webkit-slider-thumb {
   border-color: var(--accent);
 }
 
-/* ── Filters Section ── */
-.filter-section {
-  margin: 16px 0 24px;
+/* ── Filter Bar ── */
+.filter-bar {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 12px;
 }
 
-.filter-group {
+.filter-btn {
+  flex: 1 1 auto;
+  min-width: 60px;
+  height: 48px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0 8px;
+}
+
+.filter-btn span {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.filter-btn:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.filter-btn.active {
+  border-color: rgba(212, 175, 55, 0.4);
+  background: var(--surface-hover);
+}
+
+.filter-btn.active span {
+  color: var(--accent);
+}
+
+.filter-btn.icon-only {
+  flex: 0 0 48px;
+  width: 48px;
+  padding: 0;
+}
+
+.filter-btn.icon-only span {
+  font-size: 16px;
 }
 
 .filter-chips {
@@ -633,6 +680,33 @@ input[type=range].vol-slider::-webkit-slider-thumb {
   margin-bottom: 8px;
   display: block;
 }
+
+.collapsible-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s;
+  margin-bottom: 0;
+}
+
+.collapsible-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
 
 .form-input {
   width: 100%;

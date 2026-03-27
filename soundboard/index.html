@@ -49,8 +49,11 @@
         </div>
 
         <div class="progress-wrap">
-          <div class="progress-bar-container" id="progress-bar">
-            <div class="progress-fill" id="progress-fill"></div>
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+            <button class="btn btn-icon" style="padding:0; font-size:16px; width:24px; height:24px; display:flex; align-items:center; justify-content:center; flex-shrink:0;" onclick="window.UI.seekToStart()" title="Restart track">⏮</button>
+            <div class="progress-bar-container" id="progress-bar" style="margin-bottom:0; flex:1;">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
           </div>
           <div class="progress-times">
             <span id="time-current">0:00</span>
@@ -92,22 +95,23 @@
       <!-- Sections Container -->
       <div id="section-library" class="section active">
 
-        <!-- Dual Filters -->
-        <div class="filter-section">
-          <div class="filter-group">
-            <span class="form-label">Genre Filter</span>
-            <div class="filter-chips" id="genre-chips"></div>
-          </div>
-          <div class="filter-group">
-            <span class="form-label">Mood Filter</span>
-            <div class="filter-chips" id="mood-chips"></div>
-          </div>
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('genre-chips', this)">GENRE <span class="collapse-icon">▼</span></button>
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('mood-chips', this)">MOOD <span class="collapse-icon">▼</span></button>
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('tag-chips', this)">TAGS <span class="collapse-icon">▼</span></button>
+          <button class="filter-btn icon-only" onclick="window.UI.toggleCollapse('search-wrapper', this)"><span style="color:var(--text)">🔍</span></button>
         </div>
 
-        <!-- Search Bar -->
-        <div class="search-container">
-          <span class="search-icon">🔍</span>
-          <input class="search-input" id="search-input" type="search" placeholder="Search tracks or tags…">
+        <!-- Filter Contents -->
+        <div class="filter-contents">
+          <div class="filter-chips expandable" id="genre-chips" style="display:none; margin-bottom: 12px;"></div>
+          <div class="filter-chips expandable" id="mood-chips" style="display:none; margin-bottom: 12px;"></div>
+          <div class="filter-chips expandable" id="tag-chips" style="display:none; margin-bottom: 12px;"></div>
+          <div id="search-wrapper" class="expandable" style="display:none; position:relative; margin-bottom: 12px;">
+            <span class="search-icon">🔍</span>
+            <input class="search-input" id="search-input" type="search" placeholder="Search tracks or tags…">
+          </div>
         </div>
 
         <!-- Track List -->
@@ -192,14 +196,16 @@
           </label>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Genres (multiple)</label>
-          <div class="tag-pick-grid" id="genre-picks"></div>
+        <div class="filter-bar" style="margin-bottom: 12px;">
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('genre-picks', this)">GENRES <span class="collapse-icon">▼</span></button>
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('mood-picks', this)">MOODS <span class="collapse-icon">▼</span></button>
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('tag-picks', this)">TAGS <span class="collapse-icon">▼</span></button>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Moods (multiple)</label>
-          <div class="tag-pick-grid" id="mood-picks"></div>
+        <div class="filter-contents">
+          <div class="tag-pick-grid expandable" id="genre-picks" style="display:none; margin-bottom: 20px;"></div>
+          <div class="tag-pick-grid expandable" id="mood-picks" style="display:none; margin-bottom: 20px;"></div>
+          <div class="tag-pick-grid expandable" id="tag-picks" style="display:none; margin-bottom: 20px;"></div>
         </div>
 
         <div style="display:flex; gap:12px; margin-top:24px;">

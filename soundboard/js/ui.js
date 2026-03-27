@@ -9,7 +9,49 @@ export const UI = {
     activeSection: 'library',
     genreFilter: 'all',
     moodFilter: 'all',
+    tagFilter: 'all',
     searchQuery: '',
+
+    toggleCollapse(targetId, btn) {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        
+        const isOpening = el.style.display === 'none';
+
+        if (isOpening && btn) {
+            const bar = btn.closest('.filter-bar');
+            if (bar) {
+                // Reset all icons to '▼' in this bar
+                bar.querySelectorAll('.collapse-icon').forEach(icon => icon.textContent = '▼');
+                // Remove active class from all buttons
+                bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                
+                // Hide all contents in the corresponding container
+                const contents = bar.nextElementSibling;
+                if (contents && contents.classList.contains('filter-contents')) {
+                    Array.from(contents.children).forEach(child => {
+                        child.style.display = 'none';
+                    });
+                }
+            }
+        }
+
+        if (isOpening) {
+            el.style.display = '';
+            if(btn) {
+                btn.classList.add('active');
+                const sp = btn.querySelector('.collapse-icon');
+                if(sp) sp.textContent = '▲';
+            }
+        } else {
+            el.style.display = 'none';
+            if(btn) {
+                btn.classList.remove('active');
+                const sp = btn.querySelector('.collapse-icon');
+                if(sp) sp.textContent = '▼';
+            }
+        }
+    },
 
     // ICONS mapping
     ICONS: {
@@ -77,23 +119,35 @@ export const UI = {
     renderFilters() {
         const query = this.searchQuery || '';
 
-        // Adaptive Genres: Show genres present in tracks that match the current MOOD filter
+        // Adaptive Genres
         const tracksForGenreLogic = Store.library.filter(t => {
             const matchMood = this.moodFilter === 'all' || (t.moods && t.moods.includes(this.moodFilter));
+            const matchTag = this.tagFilter === 'all' || (t.tags && t.tags.includes(this.tagFilter));
             const matchSearch = !query || t.name.toLowerCase().includes(query) ||
                 (t.genres && t.genres.some(g => g.toLowerCase().includes(query)));
-            return matchMood && matchSearch;
+            return matchMood && matchTag && matchSearch;
         });
         const availGenres = [...new Set(tracksForGenreLogic.flatMap(t => t.genres || []))].sort();
 
-        // Adaptive Moods: Show moods present in tracks that match the current GENRE filter
+        // Adaptive Moods
         const tracksForMoodLogic = Store.library.filter(t => {
             const matchGenre = this.genreFilter === 'all' || (t.genres && t.genres.includes(this.genreFilter));
+            const matchTag = this.tagFilter === 'all' || (t.tags && t.tags.includes(this.tagFilter));
             const matchSearch = !query || t.name.toLowerCase().includes(query) ||
                 (t.moods && t.moods.some(m => m.toLowerCase().includes(query)));
-            return matchGenre && matchSearch;
+            return matchGenre && matchTag && matchSearch;
         });
         const availMoods = [...new Set(tracksForMoodLogic.flatMap(t => t.moods || []))].sort();
+
+        // Adaptive Tags
+        const tracksForTagLogic = Store.library.filter(t => {
+            const matchGenre = this.genreFilter === 'all' || (t.genres && t.genres.includes(this.genreFilter));
+            const matchMood = this.moodFilter === 'all' || (t.moods && t.moods.includes(this.moodFilter));
+            const matchSearch = !query || t.name.toLowerCase().includes(query) ||
+                (t.tags && t.tags.some(m => m.toLowerCase().includes(query)));
+            return matchGenre && matchMood && matchSearch;
+        });
+        const availTags = [...new Set(tracksForTagLogic.flatMap(t => t.tags || []))].sort();
 
         const genreChips = ['all', ...availGenres].map(g =>
             `<button class="chip ${this.genreFilter === g ? 'active' : ''}" onclick="window.UI.setGenreFilter('${g}')">${g}</button>`
@@ -103,8 +157,16 @@ export const UI = {
             `<button class="chip ${this.moodFilter === m ? 'active' : ''}" onclick="window.UI.setMoodFilter('${m}')">${m}</button>`
         ).join('');
 
-        document.getElementById('genre-chips').innerHTML = genreChips;
-        document.getElementById('mood-chips').innerHTML = moodChips;
+        const tagChips = ['all', ...availTags].map(m =>
+            `<button class="chip ${this.tagFilter === m ? 'active' : ''}" onclick="window.UI.setTagFilter('${m}')">${m}</button>`
+        ).join('');
+
+        const elGen = document.getElementById('genre-chips');
+        const elMood = document.getElementById('mood-chips');
+        const elTag = document.getElementById('tag-chips');
+        if(elGen) elGen.innerHTML = genreChips;
+        if(elMood) elMood.innerHTML = moodChips;
+        if(elTag) elTag.innerHTML = tagChips;
     },
 
     setGenreFilter(f) {
@@ -117,15 +179,22 @@ export const UI = {
         this.renderAll();
     },
 
+    setTagFilter(f) {
+        this.tagFilter = f;
+        this.renderAll();
+    },
+
     renderTracks() {
         const listEl = document.getElementById('track-list');
         const filtered = Store.library.filter(t => {
             const matchGenre = this.genreFilter === 'all' || (t.genres && t.genres.includes(this.genreFilter));
             const matchMood = this.moodFilter === 'all' || (t.moods && t.moods.includes(this.moodFilter));
+            const matchTag = this.tagFilter === 'all' || (t.tags && t.tags.includes(this.tagFilter));
             const matchSearch = !this.searchQuery || t.name.toLowerCase().includes(this.searchQuery) ||
                 (t.genres && t.genres.some(g => g.toLowerCase().includes(this.searchQuery))) ||
-                (t.moods && t.moods.some(m => m.toLowerCase().includes(this.searchQuery)));
-            return matchGenre && matchMood && matchSearch;
+                (t.moods && t.moods.some(m => m.toLowerCase().includes(this.searchQuery))) ||
+                (t.tags && t.tags.some(m => m.toLowerCase().includes(this.searchQuery)));
+            return matchGenre && matchMood && matchTag && matchSearch;
         });
 
         if (Store.library.length === 0) {
@@ -153,7 +222,7 @@ export const UI = {
             }
 
             const icon = this.ICONS[t.genres?.[0]] || '♪';
-            const tags = [...(t.genres || []), ...(t.moods || [])];
+            const tags = [...(t.genres || []), ...(t.moods || []), ...(t.tags || [])];
 
             // Priority: Name or Tags
             const primary = t.name || tags.join(' · ') || 'Untagged';
@@ -273,6 +342,10 @@ export const UI = {
         btn.classList.add('active');
     },
 
+    seekToStart() {
+        AudioEngine.seek(0);
+    },
+
     updateNowPlaying() {
         const t = Store.library.find(t => t.id === AudioEngine.currentTrackId);
         if (!t) return;
@@ -284,7 +357,7 @@ export const UI = {
 
         if (iconEl) iconEl.textContent = this.ICONS[t.genres?.[0]] || '♪';
         if (titleEl) titleEl.textContent = t.name;
-        if (metaEl) metaEl.textContent = [...(t.genres || []), ...(t.moods || [])].join(' · ');
+        if (metaEl) metaEl.textContent = [...(t.genres || []), ...(t.moods || []), ...(t.tags || [])].join(' · ');
         if (emptyEl) emptyEl.style.display = 'none';
     },
 
@@ -399,6 +472,7 @@ export const UI = {
             document.getElementById('confirm-add-btn').textContent = 'Save Changes';
             this.selectedGenres = [...(track.genres || [])];
             this.selectedMoods = [...(track.moods || [])];
+            this.selectedTags = [...(track.tags || [])];
 
             // Check if stored as blob
             const isBlob = status && (status.type === 'blob' || status instanceof Blob);
@@ -422,6 +496,7 @@ export const UI = {
         } else {
             this.selectedGenres = [];
             this.selectedMoods = [];
+            this.selectedTags = [];
         }
 
         this.setupTagPicks();
@@ -437,20 +512,27 @@ export const UI = {
     setupTagPicks() {
         const gContainer = document.getElementById('genre-picks');
         const mContainer = document.getElementById('mood-picks');
+        const tContainer = document.getElementById('tag-picks');
 
         const genres = Store.getAvailableGenres();
         const moods = Store.getAvailableMoods();
+        const tags = Store.getAvailableTags();
 
-        gContainer.innerHTML = genres.map(g => `<button class="tag-pick ${this.selectedGenres.includes(g) ? 'active' : ''}" data-val="${g}" onclick="window.UI.toggleTag(this, 'genre')">${g}</button>`).join('') +
+        if (gContainer) gContainer.innerHTML = genres.map(g => `<button class="tag-pick ${this.selectedGenres.includes(g) ? 'active' : ''}" data-val="${g}" onclick="window.UI.toggleTag(this, 'genre')">${g}</button>`).join('') +
             `<button class="tag-add-btn" onclick="window.UI.addCustomTag('genre')">+</button>`;
 
-        mContainer.innerHTML = moods.map(m => `<button class="tag-pick ${this.selectedMoods.includes(m) ? 'active' : ''}" data-val="${m}" onclick="window.UI.toggleTag(this, 'mood')">${m}</button>`).join('') +
+        if (mContainer) mContainer.innerHTML = moods.map(m => `<button class="tag-pick ${this.selectedMoods.includes(m) ? 'active' : ''}" data-val="${m}" onclick="window.UI.toggleTag(this, 'mood')">${m}</button>`).join('') +
             `<button class="tag-add-btn" onclick="window.UI.addCustomTag('mood')">+</button>`;
+
+        if (tContainer) tContainer.innerHTML = tags.map(m => `<button class="tag-pick ${this.selectedTags.includes(m) ? 'active' : ''}" data-val="${m}" onclick="window.UI.toggleTag(this, 'tag')">${m}</button>`).join('') +
+            `<button class="tag-add-btn" onclick="window.UI.addCustomTag('tag')">+</button>`;
     },
 
     toggleTag(btn, type) {
         const val = btn.getAttribute('data-val');
-        const list = type === 'genre' ? this.selectedGenres : this.selectedMoods;
+        let list = this.selectedGenres;
+        if (type === 'mood') list = this.selectedMoods;
+        if (type === 'tag') list = this.selectedTags;
 
         if (list.includes(val)) {
             list.splice(list.indexOf(val), 1);
@@ -465,7 +547,11 @@ export const UI = {
         const name = prompt('New tag name:');
         if (!name) return;
 
-        const container = document.getElementById(type === 'genre' ? 'genre-picks' : 'mood-picks');
+        let containerId = 'genre-picks';
+        if (type === 'mood') containerId = 'mood-picks';
+        if (type === 'tag') containerId = 'tag-picks';
+
+        const container = document.getElementById(containerId);
         const btn = document.createElement('button');
         btn.className = 'tag-pick active';
         btn.textContent = name;
@@ -473,7 +559,8 @@ export const UI = {
         btn.onclick = () => this.toggleTag(btn, type);
 
         if (type === 'genre') this.selectedGenres.push(name);
-        else this.selectedMoods.push(name);
+        else if (type === 'mood') this.selectedMoods.push(name);
+        else this.selectedTags.push(name);
 
         container.insertBefore(btn, container.lastElementChild);
     },
@@ -530,6 +617,7 @@ export const UI = {
             name: nameInput ? nameInput.value : '',
             genres: this.selectedGenres,
             moods: this.selectedMoods,
+            tags: this.selectedTags,
         };
 
         if (this.editingTrackId) {

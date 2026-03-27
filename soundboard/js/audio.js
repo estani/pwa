@@ -17,6 +17,7 @@ export const AudioEngine = {
     fadeInSecs: 5,
     masterVolume: 0.8,
     progressTimer: null,
+    isStopping: false,
     onProgress: null, // callback for UI progress updates
     onEnded: null, // callback for UI track completion
 
@@ -47,7 +48,7 @@ export const AudioEngine = {
         }
     },
 
-    playBuffer(offsetSecs = 0) {
+    playBuffer(offsetSecs = 0, applyFadeIn = true) {
         if (!this.currentAudioBuffer) return;
 
         // Reset gain for possible fade-in
@@ -58,7 +59,7 @@ export const AudioEngine = {
         src.loop = this.loopEnabled;
         src.connect(this.gainNode);
 
-        if (this.fadeInSecs > 0) {
+        if (applyFadeIn && this.fadeInSecs > 0) {
             this.gainNode.gain.setValueAtTime(0, this.context.currentTime);
             this.gainNode.gain.linearRampToValueAtTime(this.masterVolume, this.context.currentTime + this.fadeInSecs);
         } else {
@@ -72,7 +73,7 @@ export const AudioEngine = {
         this.isPlaying = true;
 
         src.onended = () => {
-            if (this.isPlaying && !this.loopEnabled) {
+            if (this.currentSource === src && this.isPlaying && !this.loopEnabled) {
                 this.isPlaying = false;
                 this.pausedAt = 0;
                 if (this.onEnded) this.onEnded();
@@ -91,8 +92,10 @@ export const AudioEngine = {
     },
 
     async stop(secs = 0.5) {
-        if (!this.currentSource) return Promise.resolve(); // Changed `this.source` to `this.currentSource`
+        if (!this.currentSource) return Promise.resolve();
+        if (this.isStopping) return Promise.resolve();
 
+        this.isStopping = true;
         const gain = this.gainNode.gain;
         gain.setValueAtTime(gain.value, this.context.currentTime);
         gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + secs);
@@ -100,6 +103,7 @@ export const AudioEngine = {
         return new Promise(resolve => {
             setTimeout(() => {
                 this._immediateStop();
+                this.isStopping = false;
                 if (this.onEnded) this.onEnded();
                 resolve();
             }, secs * 1000);
@@ -119,7 +123,11 @@ export const AudioEngine = {
         if (this.currentTrackId === null) return;
         this.init();
         if (this.isPlaying) {
-            this.pausedAt = this.context.currentTime - this.startedAt;
+            if (this.isStopping) return;
+            this.pausedAt = this.context.currentTime - this.startedAt + this.fadeOutSecs;
+            if (this.currentAudioBuffer && this.pausedAt > this.currentAudioBuffer.duration) {
+                this.pausedAt = this.currentAudioBuffer.duration;
+            }
             await this.stop(this.fadeOutSecs);
         } else {
             this.playBuffer(this.pausedAt);
@@ -146,9 +154,12 @@ export const AudioEngine = {
         const offset = pct * this.currentAudioBuffer.duration;
         if (this.isPlaying) {
             this._immediateStop();
-            this.playBuffer(offset);
+            this.playBuffer(offset, false);
         } else {
             this.pausedAt = offset;
+            if (this.onProgress) {
+                this.onProgress(this.pausedAt, this.currentAudioBuffer.duration);
+            }
         }
         return offset;
     }
