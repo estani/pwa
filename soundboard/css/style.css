@@ -123,6 +123,12 @@ body {
   background: var(--accent-glow);
 }
 
+.btn-ghost.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
 .btn-accent {
   background: var(--accent);
   color: #000;
@@ -150,7 +156,6 @@ body {
   background: var(--surface-hover);
 }
 
-/* ── Now Playing Card ── */
 .now-playing {
   margin: 20px 0;
   background: var(--surface);
@@ -158,6 +163,21 @@ body {
   border-radius: var(--radius-md);
   padding: 20px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  position: relative;
+  transition: padding 0.2s;
+}
+
+.now-playing.compact {
+  padding: 16px 20px 16px;
+}
+
+.now-playing.compact .np-top,
+.now-playing.compact .fade-section {
+  display: none;
+}
+
+.now-playing.compact .transport {
+  margin-bottom: 0;
 }
 
 .np-top {

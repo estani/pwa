@@ -28,7 +28,7 @@
     <header class="header">
       <h1>⬡ Soundboard</h1>
       <div class="header-right">
-        <button class="btn btn-ghost" id="add-btn">+ Add track</button>
+        <button class="btn btn-ghost" id="add-btn">+ Add Music</button>
       </div>
     </header>
 
@@ -37,6 +37,8 @@
 
       <!-- Now Playing Card -->
       <section class="now-playing" id="now-playing">
+        <button class="btn btn-icon" id="compact-toggle-btn" style="position:absolute; top:4px; right:4px; z-index:10; font-size:16px; width:32px; height:32px; opacity:0.6; padding:0; display:flex; align-items:center; justify-content:center;" onclick="window.UI.toggleCompactPlayer()" title="Toggle Minimal Player">▲</button>
+
         <div class="np-top">
           <div class="np-icon" id="np-icon">♪</div>
           <div class="np-info">
@@ -93,7 +95,7 @@
       </section>
 
       <!-- Sections Container -->
-      <div id="section-library" class="section active">
+      <div id="section-music" class="section active">
 
         <!-- Filter Bar -->
         <div class="filter-bar">
@@ -118,7 +120,39 @@
         <div class="track-list" id="track-list"></div>
       </div>
 
-      <div id="section-find" class="section">
+      <div id="section-effects" class="section">
+        <!-- Effect Controls -->
+        <div class="transport" style="margin-bottom: 20px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+          <div class="vol-wrap" style="flex: 1;">
+            <span class="vol-icon">🔈</span>
+            <input type="range" class="vol-slider" id="effect-vol-slider" min="0" max="100" value="80">
+            <span class="vol-icon">🔊</span>
+          </div>
+          <button class="btn btn-ghost" id="effect-loop-btn" style="width: 44px; height: 32px; font-size: 16px; padding: 0; margin-left: 12px; display: flex; align-items: center; justify-content: center;" title="Toggle Loop">🔁</button>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('cat-chips', this)">CATEGORY <span class="collapse-icon">▼</span></button>
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('effect-tag-chips', this)">TAGS <span class="collapse-icon">▼</span></button>
+          <button class="filter-btn icon-only" onclick="window.UI.toggleCollapse('effect-search-wrapper', this)"><span style="color:var(--text)">🔍</span></button>
+        </div>
+
+        <!-- Filter Contents -->
+        <div class="filter-contents">
+          <div class="filter-chips expandable" id="cat-chips" style="display:none; margin-bottom: 12px;"></div>
+          <div class="filter-chips expandable" id="effect-tag-chips" style="display:none; margin-bottom: 12px;"></div>
+          <div id="effect-search-wrapper" class="expandable" style="display:none; position:relative; margin-bottom: 12px;">
+            <span class="search-icon">🔍</span>
+            <input class="search-input" id="effect-search-input" type="search" placeholder="Search effects or tags…">
+          </div>
+        </div>
+
+        <!-- Effect List -->
+        <div class="track-list" id="effect-list"></div>
+      </div>
+
+      <div id="section-info" class="section">
         <div class="info-card">
           <h3>🆓 Free music sources</h3>
           <p>Royalty-free tracks for your show:</p>
@@ -128,10 +162,8 @@
             <a class="chip" style="text-decoration:none" href="https://incompetech.com" target="_blank">Incompetech</a>
           </div>
         </div>
-      </div>
 
-      <div id="section-status" class="section">
-        <div class="info-card" id="status-content">
+        <div class="info-card" id="status-content" style="margin-top: 20px;">
           <!-- Populated by UI.renderStatus -->
         </div>
       </div>
@@ -140,17 +172,17 @@
 
     <!-- Bottom Navigation -->
     <nav class="bottom-nav">
-      <div class="nav-item active" data-section="library">
+      <div class="nav-item active" data-section="music">
         <div class="nav-icon">♪</div>
-        <div class="nav-label">Library</div>
+        <div class="nav-label">Music</div>
       </div>
-      <div class="nav-item" data-section="find">
-        <div class="nav-icon">⊕</div>
-        <div class="nav-label">Find</div>
+      <div class="nav-item" data-section="effects">
+        <div class="nav-icon">⚡</div>
+        <div class="nav-label">Effects</div>
       </div>
-      <div class="nav-item" data-section="status">
+      <div class="nav-item" data-section="info">
         <div class="nav-icon">📊</div>
-        <div class="nav-label">Status</div>
+        <div class="nav-label">Info</div>
       </div>
     </nav>
 
@@ -160,8 +192,8 @@
   <template id="tpl-add">
     <div class="modal-overlay">
       <div class="modal">
-        <h3>Add Soundtrack</h3>
-        <p class="sub">Choose a file and tag it with multiple genres/moods</p>
+        <h3 id="modal-title">Add Soundtrack</h3>
+        <p class="sub" id="modal-sub">Choose a file and tag it</p>
 
         <div class="form-group">
           <label class="form-label">Audio File</label>
@@ -196,16 +228,27 @@
           </label>
         </div>
 
-        <div class="filter-bar" style="margin-bottom: 12px;">
+        <div class="filter-bar music-only" style="margin-bottom: 12px;">
           <button class="filter-btn" onclick="window.UI.toggleCollapse('genre-picks', this)">GENRES <span class="collapse-icon">▼</span></button>
           <button class="filter-btn" onclick="window.UI.toggleCollapse('mood-picks', this)">MOODS <span class="collapse-icon">▼</span></button>
           <button class="filter-btn" onclick="window.UI.toggleCollapse('tag-picks', this)">TAGS <span class="collapse-icon">▼</span></button>
         </div>
 
-        <div class="filter-contents">
+        <div class="filter-contents music-only">
           <div class="tag-pick-grid expandable" id="genre-picks" style="display:none; margin-bottom: 20px;"></div>
           <div class="tag-pick-grid expandable" id="mood-picks" style="display:none; margin-bottom: 20px;"></div>
           <div class="tag-pick-grid expandable" id="tag-picks" style="display:none; margin-bottom: 20px;"></div>
+        </div>
+
+        <!-- Effect Fields -->
+        <div class="filter-bar effect-only" style="margin-bottom: 12px; display: none;">
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('cat-picks', this)">CATEGORY <span class="collapse-icon">▼</span></button>
+          <button class="filter-btn" onclick="window.UI.toggleCollapse('effect-tag-picks', this)">TAGS <span class="collapse-icon">▼</span></button>
+        </div>
+
+        <div class="filter-contents effect-only" style="display:none;">
+          <div class="tag-pick-grid expandable" id="cat-picks" style="display:none; margin-bottom: 20px;"></div>
+          <div class="tag-pick-grid expandable" id="effect-tag-picks" style="display:none; margin-bottom: 20px;"></div>
         </div>
 
         <div style="display:flex; gap:12px; margin-top:24px;">

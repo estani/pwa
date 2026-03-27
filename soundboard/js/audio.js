@@ -164,3 +164,88 @@ export const AudioEngine = {
         return offset;
     }
 };
+
+export const EffectsEngine = {
+    activeSources: new Map(),
+    bufferCache: new Map(),
+    masterVolume: 0.8,
+    loopEnabled: false,
+
+    setVolume(val) {
+        this.masterVolume = val / 100;
+        this.activeSources.forEach((nodeObj) => {
+            if (nodeObj.gainNode) {
+                nodeObj.gainNode.gain.setTargetAtTime(this.masterVolume, AudioEngine.context.currentTime, 0.05);
+            }
+        });
+    },
+
+    toggleLoop() {
+        this.loopEnabled = !this.loopEnabled;
+        this.activeSources.forEach((nodeObj) => {
+            if (nodeObj.src) nodeObj.src.loop = this.loopEnabled;
+        });
+        return this.loopEnabled;
+    },
+
+    async playEffect(id, file, onEnded) {
+        AudioEngine.init();
+        const ctx = AudioEngine.context;
+        
+        let decoded = this.bufferCache.get(id);
+        if (!decoded) {
+            try {
+                const buf = await file.arrayBuffer();
+                decoded = await ctx.decodeAudioData(buf);
+                this.bufferCache.set(id, decoded);
+            } catch (e) {
+                console.error("Effect decode error:", e);
+                return;
+            }
+        }
+
+        this.stopEffect(id);
+
+        const src = ctx.createBufferSource();
+        src.buffer = decoded;
+        src.loop = this.loopEnabled;
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = this.masterVolume;
+        
+        src.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        src.start(0);
+
+        const nodeObj = { src, gainNode };
+        this.activeSources.set(id, nodeObj);
+
+        src.onended = () => {
+            if (this.activeSources.get(id) === nodeObj) {
+                this.activeSources.delete(id);
+                if (onEnded) onEnded();
+            }
+        };
+    },
+
+    stopEffect(id) {
+        const nodeObj = this.activeSources.get(id);
+        if (nodeObj && nodeObj.src) {
+            if (nodeObj.gainNode) {
+                const gain = nodeObj.gainNode.gain;
+                gain.setValueAtTime(gain.value, AudioEngine.context.currentTime);
+                gain.exponentialRampToValueAtTime(0.001, AudioEngine.context.currentTime + 1);
+            }
+            
+            this.activeSources.delete(id);
+
+            setTimeout(() => {
+                try { nodeObj.src.stop(); } catch (e) {}
+            }, 1000);
+        }
+    },
+
+    isPlaying(id) {
+        return this.activeSources.has(id);
+    }
+};

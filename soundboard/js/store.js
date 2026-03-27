@@ -9,6 +9,7 @@ const LIBRARY_KEY = 'sb_library_v2';
 
 export const FACTORY_GENRES = ['Fantasy', 'Western', 'Sci-fi'];
 export const FACTORY_MOODS = ['Epic', 'Tense', 'Light'];
+export const FACTORY_CATEGORIES = ['Nature', 'Human', 'Machine'];
 
 export const Store = {
     library: [],
@@ -90,6 +91,11 @@ export const Store = {
     getAvailableTags() {
         const custom = this.library.flatMap(t => t.tags || []);
         return [...new Set(custom)].sort();
+    },
+
+    getAvailableCategories() {
+        const custom = this.library.flatMap(t => t.categories || []);
+        return [...new Set([...FACTORY_CATEGORIES, ...custom])].sort();
     },
 
     // ── File System Access Persistence ──
@@ -234,11 +240,13 @@ export const Store = {
 
     async clearAllData() {
         const db = await this.openDB();
-        const txB = db.transaction(BLOB_STORE, 'readwrite');
-        await txB.objectStore(BLOB_STORE).clear();
-
-        const txH = db.transaction(STORE_NAME, 'readwrite');
-        await txH.objectStore(STORE_NAME).clear();
+        await new Promise((resolve) => {
+            const tx = db.transaction([BLOB_STORE, STORE_NAME], 'readwrite');
+            tx.objectStore(BLOB_STORE).clear();
+            tx.objectStore(STORE_NAME).clear();
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => resolve();
+        });
 
         localStorage.removeItem(LIBRARY_KEY);
         this.library = [];
